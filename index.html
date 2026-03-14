@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Vibe - Dark Academia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'forest': '#1b2a24',
+                        'oak': '#5d4037',
+                        'parchment': '#f4ead5',
+                        'ink': '#2c2c2c',
+                        'honey': '#d4a373',
+                    },
+                    fontFamily: {
+                        'serif': ['"EB Garamond"', 'serif'],
+                        'display': ['"Playfair Display"', 'serif'],
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse-slow 8s ease-in-out infinite',
+                        'pulse-break': 'pulse-break 8s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        'pulse-slow': {
+                            '0%, 100%': { backgroundColor: '#1b2a24' },
+                            '50%': { backgroundColor: '#2d3e38' },
+                        },
+                        'pulse-break': {
+                            '0%, 100%': { backgroundColor: '#d4a373' },
+                            '50%': { backgroundColor: '#e2bc91' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #1b2a24;
+            color: #f4ead5;
+            transition: background-color 2s ease, color 1s ease;
+        }
+        body.break-session {
+            background-color: #d4a373;
+            color: #2c2c2c;
+        }
+        .timer-running {
+            animation: pulse-slow 8s ease-in-out infinite;
+        }
+        body.break-session.timer-running {
+            animation: pulse-break 8s ease-in-out infinite;
+        }
+        .btn {
+            @apply px-8 py-3 rounded-sm border border-parchment/30 transition-all duration-300 hover:bg-parchment hover:text-forest active:scale-95;
+            font-variant: small-caps;
+        }
+        body.break-session .btn {
+            @apply border-ink/30 hover:bg-ink hover:text-honey;
+        }
+        .glass {
+            background: rgba(27, 42, 36, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(244, 234, 213, 0.1);
+        }
+        body.break-session .glass {
+            background: rgba(212, 163, 115, 0.7);
+            border: 1px solid rgba(44, 44, 44, 0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center font-serif overflow-hidden">
+
+    <div class="max-w-2xl w-full px-6 py-12 text-center space-y-12">
+        <!-- Header -->
+        <header class="space-y-2">
+            <h1 id="statusLabel" class="font-display italic text-4xl tracking-widest opacity-80">Memento Mori</h1>
+            <p id="statusSublabel" class="text-sm tracking-[0.2em] uppercase opacity-50">Focus on the present moment</p>
+        </header>
+
+        <!-- Timer Display -->
+        <div class="glass py-16 px-8 rounded-lg shadow-2xl relative overflow-hidden group">
+            <div id="timer" class="font-display text-9xl md:text-[10rem] tracking-tighter leading-none select-none">
+                25:00
+            </div>
+            
+            <div class="mt-8 flex justify-center gap-6">
+                <button id="startBtn" class="btn text-lg">Start</button>
+                <button id="pauseBtn" class="btn text-lg hidden">Pause</button>
+                <button id="resetBtn" class="btn text-lg">Reset</button>
+            </div>
+        </div>
+
+        <!-- Controls & Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <!-- Audio Toggle -->
+            <div class="flex items-center justify-center gap-4 glass p-4 rounded">
+                <span class="text-sm uppercase tracking-widest opacity-60">Rain Sound</span>
+                <button id="audioToggle" class="relative inline-flex items-center h-6 rounded-full w-11 border border-parchment/30 transition-colors focus:outline-none">
+                    <span id="audioKnob" class="inline-block w-4 h-4 transform bg-parchment/50 rounded-full transition-transform translate-x-1"></span>
+                </button>
+            </div>
+
+            <!-- Stats -->
+            <div class="glass p-4 rounded">
+                <span class="text-sm uppercase tracking-widest opacity-60">Completed Today:</span>
+                <span id="sessionsCount" class="ml-2 font-display text-2xl">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Audio Element -->
+    <audio id="rainAudio" loop preload="auto">
+        <source src="https://www.soundjay.com/nature/sounds/rain-01.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        const FOCUS_TIME = 25 * 60;
+        const BREAK_TIME = 5 * 60;
+        
+        let timeLeft = FOCUS_TIME;
+        let timerId = null;
+        let isRunning = false;
+        let isAudioPlaying = false;
+        let isBreak = false;
+
+        const timerDisplay = document.getElementById('timer');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const audioToggle = document.getElementById('audioToggle');
+        const audioKnob = document.getElementById('audioKnob');
+        const rainAudio = document.getElementById('rainAudio');
+        const sessionsCountDisplay = document.getElementById('sessionsCount');
+        const statusLabel = document.getElementById('statusLabel');
+        const statusSublabel = document.getElementById('statusSublabel');
+
+        // Initialize Local Storage
+        function getTodayDate() {
+            return new Date().toISOString().split('T')[0];
+        }
+
+        function updateSessionsDisplay() {
+            const today = getTodayDate();
+            const sessions = JSON.parse(localStorage.getItem('pomo_sessions') || '{}');
+            sessionsCountDisplay.innerText = sessions[today] || 0;
+        }
+
+        function incrementSessions() {
+            const today = getTodayDate();
+            const sessions = JSON.parse(localStorage.getItem('pomo_sessions') || '{}');
+            sessions[today] = (sessions[today] || 0) + 1;
+            localStorage.setItem('pomo_sessions', JSON.stringify(sessions));
+            updateSessionsDisplay();
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function updateDisplay() {
+            timerDisplay.innerText = formatTime(timeLeft);
+            const mode = isBreak ? "Break" : "Focus";
+            document.title = `${formatTime(timeLeft)} - ${mode}`;
+        }
+
+        function startTimer() {
+            if (isRunning) return;
+            isRunning = true;
+            document.body.classList.add('timer-running');
+            startBtn.classList.add('hidden');
+            pauseBtn.classList.remove('hidden');
+            
+            timerId = setInterval(() => {
+                timeLeft--;
+                updateDisplay();
+                if (timeLeft <= 0) {
+                    clearInterval(timerId);
+                    if (isBreak) {
+                        endBreak();
+                    } else {
+                        completeSession();
+                    }
+                }
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            isRunning = false;
+            document.body.classList.remove('timer-running');
+            clearInterval(timerId);
+            startBtn.classList.remove('hidden');
+            pauseBtn.classList.add('hidden');
+        }
+
+        function resetTimer() {
+            pauseTimer();
+            isBreak = false;
+            document.body.classList.remove('break-session');
+            statusLabel.innerText = "Memento Mori";
+            statusSublabel.innerText = "Focus on the present moment";
+            timeLeft = FOCUS_TIME;
+            updateDisplay();
+        }
+
+        function completeSession() {
+            pauseTimer();
+            incrementSessions();
+            
+            // Switch to Break Mode
+            isBreak = true;
+            document.body.classList.add('break-session');
+            statusLabel.innerText = "Tea Time";
+            statusSublabel.innerText = "Relax and recharge";
+            timeLeft = BREAK_TIME;
+            updateDisplay();
+            
+            setTimeout(() => {
+                alert("Pomodoro done! Time for a brew!");
+            }, 100);
+        }
+
+        function endBreak() {
+            pauseTimer();
+            isBreak = false;
+            document.body.classList.remove('break-session');
+            statusLabel.innerText = "Memento Mori";
+            statusSublabel.innerText = "Focus on the present moment";
+            timeLeft = FOCUS_TIME;
+            updateDisplay();
+            alert("Break over! Ready to focus?");
+        }
+
+        function toggleAudio() {
+            isAudioPlaying = !isAudioPlaying;
+            if (isAudioPlaying) {
+                rainAudio.play();
+                audioKnob.classList.replace('translate-x-1', 'translate-x-6');
+                audioKnob.classList.replace('bg-parchment/50', 'bg-parchment');
+                audioToggle.classList.add('bg-oak/30');
+            } else {
+                rainAudio.pause();
+                audioKnob.classList.replace('translate-x-6', 'translate-x-1');
+                audioKnob.classList.replace('bg-parchment', 'bg-parchment/50');
+                audioToggle.classList.remove('bg-oak/30');
+            }
+        }
+
+        // Event Listeners
+        startBtn.addEventListener('click', startTimer);
+        pauseBtn.addEventListener('click', pauseTimer);
+        resetBtn.addEventListener('click', resetTimer);
+        audioToggle.addEventListener('click', toggleAudio);
+
+        // Initial Setup
+        updateDisplay();
+        updateSessionsDisplay();
+    </script>
+</body>
+</html>
