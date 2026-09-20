@@ -92,6 +92,7 @@
                 <button id="startBtn" class="btn text-lg">Start</button>
                 <button id="pauseBtn" class="btn text-lg hidden">Pause</button>
                 <button id="resetBtn" class="btn text-lg">Reset</button>
+                <button id="skipBtn" class="btn text-lg hidden">Skip Break</button>
             </div>
         </div>
 
@@ -132,6 +133,7 @@
         const startBtn = document.getElementById('startBtn');
         const pauseBtn = document.getElementById('pauseBtn');
         const resetBtn = document.getElementById('resetBtn');
+        const skipBtn = document.getElementById('skipBtn');
         const audioToggle = document.getElementById('audioToggle');
         const audioKnob = document.getElementById('audioKnob');
         const rainAudio = document.getElementById('rainAudio');
@@ -202,6 +204,7 @@
         function resetTimer() {
             pauseTimer();
             isBreak = false;
+            skipBtn.classList.add('hidden');
             document.body.classList.remove('break-session');
             statusLabel.innerText = "Memento Mori";
             statusSublabel.innerText = "Focus on the present moment";
@@ -215,6 +218,7 @@
             
             // Switch to Break Mode
             isBreak = true;
+            skipBtn.classList.remove('hidden');
             document.body.classList.add('break-session');
             statusLabel.innerText = "Tea Time";
             statusSublabel.innerText = "Relax and recharge";
@@ -229,12 +233,19 @@
         function endBreak() {
             pauseTimer();
             isBreak = false;
+            skipBtn.classList.add('hidden');
             document.body.classList.remove('break-session');
             statusLabel.innerText = "Memento Mori";
             statusSublabel.innerText = "Focus on the present moment";
             timeLeft = FOCUS_TIME;
             updateDisplay();
             alert("Break over! Ready to focus?");
+        }
+
+        function skipBreak() {
+            if (isBreak) {
+                endBreak();
+            }
         }
 
         function toggleAudio() {
@@ -256,6 +267,7 @@
         startBtn.addEventListener('click', startTimer);
         pauseBtn.addEventListener('click', pauseTimer);
         resetBtn.addEventListener('click', resetTimer);
+        skipBtn.addEventListener('click', skipBreak);
         audioToggle.addEventListener('click', toggleAudio);
 
         // Initial Setup
